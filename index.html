@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Počasie</title>
+  <style>
+    body { font-family: sans-serif; max-width: 400px; margin: 60px auto; padding: 0 16px; }
+    input, button { padding: 8px; font-size: 16px; }
+    #vysledok { margin-top: 24px; font-size: 18px; }
+    .chyba { color: crimson; }
+  </style>
+</head>
+<body>
+  <h1>Počasie</h1>
+  <input id="mesto" placeholder="Zadaj mesto" value="Nitra">
+  <button id="hladaj">Hľadaj</button>
+  <div id="vysledok"></div>
+
+  <script>
+    const vysledok = document.getElementById("vysledok");
+
+    async function nacitaj() {
+      const mesto = document.getElementById("mesto").value;
+      vysledok.textContent = "Načítavam...";
+      vysledok.className = "";
+
+      try {
+        const res = await fetch("pocasie.php?mesto=" + encodeURIComponent(mesto));
+        const data = await res.json();
+
+        if (!res.ok) {
+          vysledok.textContent = data.chyba;
+          vysledok.className = "chyba";
+          return;
+        }
+
+        vysledok.innerHTML =
+          `<strong>${data.mesto}</strong><br>
+           ${data.teplota} °C (pocitovo ${data.pocitova} °C)<br>
+           ${data.popis}, vlhkosť ${data.vlhkost} %`;
+      } catch (e) {
+        vysledok.textContent = "Nepodarilo sa spojiť so serverom.";
+        vysledok.className = "chyba";
+      }
+    }
+
+    document.getElementById("hladaj").addEventListener("click", nacitaj);
+    nacitaj();
+  </script>
+</body>
+</html>
