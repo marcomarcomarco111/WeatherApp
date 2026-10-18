@@ -4,48 +4,537 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Počasie</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;600&display=swap" rel="stylesheet">
   <style>
-    body { font-family: sans-serif; max-width: 400px; margin: 60px auto; padding: 0 16px; }
-    input, button { padding: 8px; font-size: 16px; }
-    #vysledok { margin-top: 24px; font-size: 18px; }
-    .chyba { color: crimson; }
+    :root {
+      --sky-a: #4facfe;
+      --sky-b: #00c6fb;
+      --sky-c: #a1c4fd;
+      --glass: rgba(255, 255, 255, 0.14);
+      --glass-border: rgba(255, 255, 255, 0.28);
+      --text: #fff;
+      --muted: rgba(255, 255, 255, 0.72);
+    }
+
+    /* farby oblohy podľa počasia */
+    body.clear-day   { --sky-a: #2f80ed; --sky-b: #56ccf2; --sky-c: #ffd89b; }
+    body.clear-night { --sky-a: #0f2027; --sky-b: #203a43; --sky-c: #2c5364; }
+    body.clouds-day  { --sky-a: #5b7c99; --sky-b: #8aa6c1; --sky-c: #c9d6df; }
+    body.clouds-night{ --sky-a: #1c2331; --sky-b: #2e3b4e; --sky-c: #4b5d73; }
+    body.rain        { --sky-a: #29323c; --sky-b: #485563; --sky-c: #5f7182; }
+    body.storm       { --sky-a: #0f0c29; --sky-b: #302b63; --sky-c: #24243e; }
+    body.snow        { --sky-a: #83a4d4; --sky-b: #b6c7e0; --sky-c: #e6eef7; }
+    body.mist        { --sky-a: #606c88; --sky-b: #8e9eab; --sky-c: #b9c3cc; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Outfit", system-ui, sans-serif;
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 16px;
+      background: linear-gradient(160deg, var(--sky-a), var(--sky-b) 55%, var(--sky-c));
+      background-color: #2f80ed;
+      background-attachment: fixed;
+      transition: background 1.2s ease;
+      overflow-x: hidden;
+    }
+
+    /* ---------- animácie pozadia ---------- */
+    #scena { position: fixed; inset: 0; pointer-events: none; overflow: hidden; z-index: 0; }
+    #castice { position: absolute; inset: 0; width: 100%; height: 100%; }
+
+    .slnko {
+      position: absolute; top: 8%; right: 10%;
+      width: 160px; height: 160px; border-radius: 50%;
+      background: radial-gradient(circle, #fff7c2 0%, #ffd34e 45%, #ffb300 100%);
+      box-shadow: 0 0 80px 30px rgba(255, 210, 80, .55), 0 0 180px 80px rgba(255, 190, 60, .25);
+      animation: pulz 5s ease-in-out infinite;
+    }
+    .slnko::before {
+      content: ""; position: absolute; inset: -70px; border-radius: 50%;
+      background: repeating-conic-gradient(rgba(255,240,180,.35) 0 6deg, transparent 6deg 24deg);
+      mask: radial-gradient(circle, transparent 42%, #000 46%, transparent 72%);
+      -webkit-mask: radial-gradient(circle, transparent 42%, #000 46%, transparent 72%);
+      animation: tocenie 40s linear infinite;
+    }
+    @keyframes pulz { 50% { transform: scale(1.06); } }
+    @keyframes tocenie { to { transform: rotate(360deg); } }
+
+    .mesiac {
+      position: absolute; top: 9%; right: 12%;
+      width: 110px; height: 110px; border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #fffdf0, #e8e4cf 60%, #c9c4a8);
+      box-shadow: 0 0 60px 15px rgba(255, 253, 230, .35);
+    }
+    .mesiac::after {
+      content: ""; position: absolute; width: 22px; height: 22px; border-radius: 50%;
+      top: 30%; left: 55%; background: rgba(0,0,0,.07); box-shadow: -34px 26px 0 -4px rgba(0,0,0,.06);
+    }
+
+    .hviezda {
+      position: absolute; width: 2px; height: 2px; border-radius: 50%; background: #fff;
+      animation: blikanie var(--t) ease-in-out infinite; animation-delay: var(--d);
+    }
+    @keyframes blikanie { 50% { opacity: .15; transform: scale(.6); } }
+
+    .mrak {
+      position: absolute; left: -400px;
+      width: var(--w); height: calc(var(--w) * .32);
+      background: rgba(255,255,255,var(--o));
+      border-radius: 999px; filter: blur(6px);
+      animation: plavanie var(--t) linear infinite; animation-delay: var(--d);
+    }
+    .mrak::before, .mrak::after {
+      content: ""; position: absolute; background: inherit; border-radius: 50%;
+    }
+    .mrak::before { width: 50%; height: 150%; top: -70%; left: 14%; }
+    .mrak::after  { width: 36%; height: 120%; top: -50%; left: 50%; }
+    @keyframes plavanie { to { transform: translateX(calc(100vw + 800px)); } }
+
+    .hmla {
+      position: absolute; left: -50%; width: 200%; height: 40%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent 40%, rgba(255,255,255,.3), transparent);
+      filter: blur(30px);
+      animation: hmla var(--t) ease-in-out infinite alternate;
+    }
+    @keyframes hmla { to { transform: translateX(25%); } }
+
+    #blesk {
+      position: absolute; inset: 0; background: #fff; opacity: 0;
+    }
+    #blesk.zablesk { animation: zablesk .6s ease-out; }
+    @keyframes zablesk { 0%,30% { opacity: .75; } 15%,45% { opacity: .1; } 100% { opacity: 0; } }
+
+    /* ---------- karta ---------- */
+    .karta {
+      position: relative; z-index: 1;
+      width: 100%; max-width: 760px;
+      padding: 32px;
+      border-radius: 32px;
+      background: var(--glass);
+      border: 1px solid var(--glass-border);
+      backdrop-filter: blur(22px) saturate(140%);
+      -webkit-backdrop-filter: blur(22px) saturate(140%);
+      box-shadow: 0 30px 80px rgba(0,0,0,.25), inset 0 1px 0 rgba(255,255,255,.35);
+    }
+
+    .hladanie {
+      display: flex; gap: 8px; margin: 0 auto 28px; max-width: 420px;
+      background: rgba(255,255,255,.16); border: 1px solid var(--glass-border);
+      border-radius: 999px; padding: 6px;
+      transition: box-shadow .25s, background .25s;
+    }
+    .hladanie:focus-within { background: rgba(255,255,255,.24); box-shadow: 0 0 0 4px rgba(255,255,255,.18); }
+    .hladanie input {
+      flex: 1; min-width: 0; border: 0; outline: 0; background: transparent;
+      color: var(--text); font: inherit; font-size: 17px; padding: 8px 14px;
+    }
+    .hladanie input::placeholder { color: var(--muted); }
+    .hladanie button {
+      border: 0; cursor: pointer; border-radius: 999px; padding: 10px 20px;
+      font: inherit; font-weight: 600; color: #1d3557;
+      background: linear-gradient(135deg, #fff, #dbeafe);
+      transition: transform .15s, box-shadow .2s;
+    }
+    .hladanie button:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(0,0,0,.2); }
+    .hladanie button:active { transform: scale(.96); }
+
+    .hlavna { text-align: center; }
+    .mesto { font-size: 32px; font-weight: 600; letter-spacing: .5px; }
+    .mesto small { font-size: 15px; font-weight: 400; color: var(--muted); margin-left: 6px; }
+    .datum { color: var(--muted); font-size: 15px; margin-top: 4px; text-transform: capitalize; }
+
+    .stred {
+      display: flex; align-items: center; justify-content: center; gap: 8px; margin: 8px 0 4px;
+    }
+    .ikona-velka {
+      width: 150px; height: 150px;
+      filter: drop-shadow(0 12px 24px rgba(0,0,0,.25));
+      animation: vznasanie 4s ease-in-out infinite;
+    }
+    @keyframes vznasanie { 50% { transform: translateY(-10px); } }
+    .teplota { font-size: 96px; font-weight: 200; line-height: 1; letter-spacing: -3px; }
+    .teplota sup { font-size: 36px; font-weight: 300; vertical-align: top; position: relative; top: 14px; letter-spacing: 0; }
+    .popis { font-size: 22px; text-transform: capitalize; }
+    .doplnok { color: var(--muted); margin-top: 6px; font-size: 15px; }
+
+    /* ---------- dlaždice ---------- */
+    .dlazdice {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 30px;
+    }
+    .dlazdica {
+      background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+      border-radius: 20px; padding: 16px; min-height: 128px;
+      display: flex; flex-direction: column; gap: 6px;
+      transition: transform .25s, background .25s;
+    }
+    .dlazdica:hover { transform: translateY(-4px); background: rgba(255,255,255,.2); }
+    .dlazdica h3 {
+      font-size: 12px; font-weight: 400; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted);
+    }
+    .hodnota { font-size: 28px; font-weight: 300; }
+    .hodnota span { font-size: 15px; color: var(--muted); margin-left: 2px; }
+    .pozn { font-size: 13px; color: var(--muted); margin-top: auto; }
+
+    .lista { height: 6px; border-radius: 99px; background: rgba(255,255,255,.2); overflow: hidden; margin-top: 4px; }
+    .lista i { display: block; height: 100%; border-radius: inherit; width: 0; transition: width 1.2s cubic-bezier(.2,.8,.2,1); }
+    .uv-lista { background: linear-gradient(90deg, #3ec46d, #f9d423 30%, #ff8c1a 55%, #e63946 75%, #9d4edd); position: relative; overflow: visible; }
+    .uv-lista b {
+      position: absolute; top: 50%; width: 14px; height: 14px; border-radius: 50%;
+      background: #fff; border: 3px solid rgba(0,0,0,.25); transform: translate(-50%, -50%);
+      left: 0; transition: left 1.2s cubic-bezier(.2,.8,.2,1);
+    }
+
+    .kompas-riadok { display: flex; align-items: center; gap: 14px; }
+    .kompas {
+      width: 54px; height: 54px; flex: none; border-radius: 50%;
+      border: 2px solid rgba(255,255,255,.35); position: relative;
+      font-size: 9px; color: var(--muted);
+    }
+    .kompas::before { content: "S"; position: absolute; top: 1px; left: 50%; transform: translateX(-50%); }
+    .kompas svg { position: absolute; inset: 0; transition: transform 1.2s cubic-bezier(.2,.8,.2,1); }
+
+    .slnko-obluk { width: 100%; height: 56px; }
+
+    /* ---------- predpoveď ---------- */
+    .nadpis { font-size: 13px; text-transform: uppercase; letter-spacing: 1.4px; color: var(--muted); margin: 28px 0 12px; }
+    .dni { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+    .den {
+      text-align: center; padding: 16px 8px; border-radius: 20px;
+      background: rgba(255,255,255,.12); border: 1px solid rgba(255,255,255,.2);
+      transition: transform .25s, background .25s;
+    }
+    .den:hover { transform: translateY(-4px); background: rgba(255,255,255,.2); }
+    .den .meno { font-weight: 600; text-transform: capitalize; }
+    .den .kedy { font-size: 12px; color: var(--muted); }
+    .den img { width: 64px; height: 64px; margin: 2px auto; display: block; }
+    .den .teploty { font-size: 17px; }
+    .den .teploty span { color: var(--muted); margin-left: 6px; }
+    .den .dazd { font-size: 12px; color: #cde7ff; margin-top: 4px; min-height: 15px; }
+
+    /* ---------- stavy ---------- */
+    .stav { text-align: center; padding: 60px 0; color: var(--muted); font-size: 18px; }
+    .chyba { color: #ffd6d6; }
+    .spinner {
+      width: 42px; height: 42px; margin: 0 auto 14px; border-radius: 50%;
+      border: 3px solid rgba(255,255,255,.25); border-top-color: #fff;
+      animation: tocenie .8s linear infinite;
+    }
+
+    .objav { opacity: 0; transform: translateY(16px); animation: objav .6s cubic-bezier(.2,.8,.2,1) forwards; }
+    @keyframes objav { to { opacity: 1; transform: none; } }
+
+    @media (max-width: 640px) {
+      .karta { padding: 22px 16px; border-radius: 26px; }
+      .dlazdice { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .dni { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+      .teplota { font-size: 76px; }
+      .ikona-velka { width: 110px; height: 110px; }
+      .slnko { width: 110px; height: 110px; right: -10px; top: 3%; }
+      .mesiac { width: 80px; height: 80px; right: 4%; top: 3%; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: 0s !important; animation-iteration-count: 1 !important; transition: none !important; }
+      #castice { display: none; }
+    }
   </style>
 </head>
-<body>
-  <h1>Počasie</h1>
-  <input id="mesto" placeholder="Zadaj mesto" value="Nitra">
-  <button id="hladaj">Hľadaj</button>
-  <div id="vysledok"></div>
+<body class="clear-day">
+  <div id="scena">
+    <div id="pozadie"></div>
+    <canvas id="castice"></canvas>
+    <div id="blesk"></div>
+  </div>
+
+  <main class="karta">
+    <form class="hladanie" id="formular">
+      <input id="mesto" placeholder="Zadaj mesto…" value="Nitra" autocomplete="off">
+      <button type="submit">Hľadaj</button>
+    </form>
+    <div id="vysledok"></div>
+  </main>
 
   <script>
     const vysledok = document.getElementById("vysledok");
+    const pozadie = document.getElementById("pozadie");
+
+    const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+    const ikonaUrl = (kod, velkost = "4x") => `https://openweathermap.org/img/wn/${kod}@${velkost}.png`;
+
+    // čas v lokálnom pásme mesta (posun v sekundách od UTC)
+    const lokalnyCas = (unix, posun) => new Date((unix + posun) * 1000);
+    const formatCas = d => d.toLocaleTimeString("sk", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+
+    function smerVetra(deg) {
+      const smery = ["S", "SV", "V", "JV", "J", "JZ", "Z", "SZ"];
+      return smery[Math.round(deg / 45) % 8];
+    }
+
+    function uvUroven(uv) {
+      if (uv < 3) return "Nízky";
+      if (uv < 6) return "Stredný";
+      if (uv < 8) return "Vysoký";
+      if (uv < 11) return "Veľmi vysoký";
+      return "Extrémny";
+    }
+
+    function temaPocasia(typ, ikona) {
+      const noc = ikona.endsWith("n");
+      if (typ >= 200 && typ < 300) return "storm";
+      if (typ >= 300 && typ < 600) return "rain";
+      if (typ >= 600 && typ < 700) return "snow";
+      if (typ >= 700 && typ < 800) return "mist";
+      if (typ === 800 || typ === 801) return noc ? "clear-night" : "clear-day";
+      return noc ? "clouds-night" : "clouds-day";
+    }
+
+    /* ---------- scéna na pozadí ---------- */
+    const platno = document.getElementById("castice");
+    const ctx = platno.getContext("2d");
+    let castice = [], druhCastic = null, bleskTimer = null;
+
+    function zmenVelkost() {
+      platno.width = innerWidth * devicePixelRatio;
+      platno.height = innerHeight * devicePixelRatio;
+      ctx.setTransform(devicePixelRatio, 0, 0, devicePixelRatio, 0, 0);
+    }
+    addEventListener("resize", zmenVelkost);
+    zmenVelkost();
+
+    function mraky(pocet, opacita) {
+      let html = "";
+      for (let i = 0; i < pocet; i++) {
+        const w = 180 + Math.random() * 260;
+        html += `<div class="mrak" style="--w:${w}px;--o:${opacita};--t:${50 + Math.random() * 60}s;--d:-${Math.random() * 100}s;top:${Math.random() * 45}%"></div>`;
+      }
+      return html;
+    }
+
+    function hviezdy(pocet) {
+      let html = "";
+      for (let i = 0; i < pocet; i++) {
+        html += `<div class="hviezda" style="left:${Math.random() * 100}%;top:${Math.random() * 70}%;--t:${2 + Math.random() * 4}s;--d:-${Math.random() * 5}s;opacity:${.4 + Math.random() * .6}"></div>`;
+      }
+      return html;
+    }
+
+    function nastavScenu(tema, typ) {
+      document.body.className = tema;
+      clearInterval(bleskTimer);
+      druhCastic = null;
+
+      const scena = {
+        "clear-day":    '<div class="slnko"></div>' + mraky(2, .35),
+        "clear-night":  '<div class="mesiac"></div>' + hviezdy(90),
+        "clouds-day":   '<div class="slnko" style="opacity:.75"></div>' + mraky(9, .45),
+        "clouds-night": '<div class="mesiac" style="opacity:.7"></div>' + hviezdy(40) + mraky(8, .18),
+        "rain":         mraky(10, .22),
+        "storm":        mraky(10, .15),
+        "snow":         mraky(6, .4),
+        "mist":         [0, 1, 2].map(i => `<div class="hmla" style="top:${15 + i * 28}%;--t:${14 + i * 6}s"></div>`).join(""),
+      };
+      pozadie.innerHTML = scena[tema];
+
+      if (tema === "rain" || tema === "storm") {
+        const mrholenie = typ >= 300 && typ < 400;
+        druhCastic = "dazd";
+        castice = Array.from({ length: mrholenie ? 90 : 220 }, () => ({
+          x: Math.random() * innerWidth, y: Math.random() * innerHeight,
+          d: 12 + Math.random() * 16, v: (mrholenie ? 6 : 12) + Math.random() * 8, o: .2 + Math.random() * .4,
+        }));
+      }
+      if (tema === "snow") {
+        druhCastic = "sneh";
+        castice = Array.from({ length: 160 }, () => ({
+          x: Math.random() * innerWidth, y: Math.random() * innerHeight,
+          r: 1 + Math.random() * 3, v: .5 + Math.random() * 1.3, f: Math.random() * Math.PI * 2,
+        }));
+      }
+      if (tema === "storm") {
+        const blesk = document.getElementById("blesk");
+        bleskTimer = setInterval(() => {
+          if (Math.random() < .5) return;
+          blesk.classList.remove("zablesk");
+          void blesk.offsetWidth;
+          blesk.classList.add("zablesk");
+        }, 3000);
+      }
+    }
+
+    function animuj() {
+      ctx.clearRect(0, 0, innerWidth, innerHeight);
+      if (druhCastic === "dazd") {
+        ctx.lineCap = "round";
+        for (const k of castice) {
+          ctx.strokeStyle = `rgba(200,220,255,${k.o})`;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.moveTo(k.x, k.y);
+          ctx.lineTo(k.x - 3, k.y + k.d);
+          ctx.stroke();
+          k.y += k.v; k.x -= .8;
+          if (k.y > innerHeight) { k.y = -20; k.x = Math.random() * (innerWidth + 100); }
+        }
+      } else if (druhCastic === "sneh") {
+        ctx.fillStyle = "rgba(255,255,255,.9)";
+        for (const k of castice) {
+          ctx.beginPath();
+          ctx.arc(k.x, k.y, k.r, 0, Math.PI * 2);
+          ctx.fill();
+          k.f += .02; k.y += k.v; k.x += Math.sin(k.f) * .6;
+          if (k.y > innerHeight) { k.y = -5; k.x = Math.random() * innerWidth; }
+        }
+      }
+      requestAnimationFrame(animuj);
+    }
+    animuj();
+
+    /* ---------- vykreslenie dát ---------- */
+    function pocitadlo(el, ciel) {
+      const start = performance.now(), trvanie = 900;
+      (function krok(t) {
+        const p = Math.min(1, (t - start) / trvanie);
+        el.textContent = Math.round(ciel * (1 - Math.pow(1 - p, 3)));
+        if (p < 1) requestAnimationFrame(krok);
+      })(start);
+    }
+
+    function oblukSlnka(d) {
+      const teraz = Math.floor(Date.now() / 1000);
+      const p = Math.max(0, Math.min(1, (teraz - d.vychod) / (d.zapad - d.vychod)));
+      // poloha na polkruhu
+      const uhol = Math.PI * (1 - p);
+      const x = 60 + 50 * Math.cos(uhol), y = 52 - 44 * Math.sin(uhol);
+      return `
+        <svg class="slnko-obluk" viewBox="0 0 120 56">
+          <path d="M10 52 A50 44 0 0 1 110 52" fill="none" stroke="rgba(255,255,255,.3)" stroke-width="1.5" stroke-dasharray="3 4"/>
+          <line x1="4" y1="52" x2="116" y2="52" stroke="rgba(255,255,255,.3)"/>
+          <circle cx="${x}" cy="${y}" r="6" fill="#ffd34e" style="filter:drop-shadow(0 0 6px #ffd34e)"/>
+        </svg>`;
+    }
+
+    function zobraz(d) {
+      const teraz = lokalnyCas(Math.floor(Date.now() / 1000), d.posun);
+      const datum = teraz.toLocaleDateString("sk", { weekday: "long", day: "numeric", month: "long", timeZone: "UTC" });
+
+      const uvText = d.uv === null ? "–" : d.uv;
+      const uvPoz = d.uv === null ? 0 : Math.min(100, (d.uv / 12) * 100);
+
+      const dni = d.dni.map(den => {
+        const dt = new Date(den.datum + "T12:00:00Z");
+        return `
+          <div class="den">
+            <div class="meno">${dt.toLocaleDateString("sk", { weekday: "short", timeZone: "UTC" })}</div>
+            <div class="kedy">${dt.toLocaleDateString("sk", { day: "numeric", month: "numeric", timeZone: "UTC" })}</div>
+            <img src="${ikonaUrl(den.ikona, "2x")}" alt="${esc(den.popis)}" title="${esc(den.popis)}">
+            <div class="teploty">${den.max}°<span>${den.min}°</span></div>
+            <div class="dazd">${den.zrazky > 0 ? "💧 " + den.zrazky + " %" : ""}</div>
+          </div>`;
+      }).join("");
+
+      vysledok.innerHTML = `
+        <section class="hlavna objav">
+          <div class="mesto">${esc(d.mesto)}<small>${esc(d.krajina)}</small></div>
+          <div class="datum">${datum} · ${formatCas(teraz)}</div>
+          <div class="stred">
+            <img class="ikona-velka" src="${ikonaUrl(d.ikona)}" alt="">
+            <div class="teplota"><span id="cislo">0</span><sup>°C</sup></div>
+          </div>
+          <div class="popis">${esc(d.popis)}</div>
+          <div class="doplnok">Pocitovo ${Math.round(d.pocitova)}° · Max ${d.max}° · Min ${d.min}°</div>
+        </section>
+
+        <section class="dlazdice">
+          <div class="dlazdica objav" style="animation-delay:.08s">
+            <h3>Vietor</h3>
+            <div class="kompas-riadok">
+              <div class="kompas">
+                <svg viewBox="0 0 54 54" id="sipka">
+                  <path d="M27 10 L32 30 L27 26 L22 30 Z" fill="#fff"/>
+                </svg>
+              </div>
+              <div class="hodnota">${d.vietor}<span>km/h</span></div>
+            </div>
+            <div class="pozn">Smer ${smerVetra(d.smer)}${d.narazy ? ` · nárazy ${d.narazy} km/h` : ""}</div>
+          </div>
+
+          <div class="dlazdica objav" style="animation-delay:.14s">
+            <h3>UV index</h3>
+            <div class="hodnota">${uvText}<span>${d.uv === null ? "" : uvUroven(d.uv)}</span></div>
+            <div class="lista uv-lista"><b id="uvBod"></b></div>
+            <div class="pozn">${d.uv_max !== null ? "Dnes max " + d.uv_max : "Nedostupné"}</div>
+          </div>
+
+          <div class="dlazdica objav" style="animation-delay:.2s">
+            <h3>Vlhkosť</h3>
+            <div class="hodnota">${d.vlhkost}<span>%</span></div>
+            <div class="lista"><i id="vlhkostBar" style="background:linear-gradient(90deg,#a0e9ff,#4facfe)"></i></div>
+            <div class="pozn">Oblačnosť ${d.oblacnost} %</div>
+          </div>
+
+          <div class="dlazdica objav" style="animation-delay:.26s">
+            <h3>Slnko</h3>
+            ${oblukSlnka(d)}
+            <div class="pozn">☀ ${formatCas(lokalnyCas(d.vychod, d.posun))} &nbsp; ☾ ${formatCas(lokalnyCas(d.zapad, d.posun))}</div>
+          </div>
+
+          <div class="dlazdica objav" style="animation-delay:.32s">
+            <h3>Tlak</h3>
+            <div class="hodnota">${d.tlak}<span>hPa</span></div>
+            <div class="pozn">${d.tlak > 1018 ? "Vysoký tlak" : d.tlak < 1008 ? "Nízky tlak" : "Normálny tlak"}</div>
+          </div>
+
+          <div class="dlazdica objav" style="animation-delay:.38s">
+            <h3>Viditeľnosť</h3>
+            <div class="hodnota">${d.viditelnost ?? "–"}<span>km</span></div>
+            <div class="pozn">${d.viditelnost >= 10 ? "Výborná" : d.viditelnost >= 4 ? "Dobrá" : "Znížená"}</div>
+          </div>
+        </section>
+
+        <div class="nadpis objav" style="animation-delay:.42s">Predpoveď na ${d.dni.length} dni</div>
+        <section class="dni objav" style="animation-delay:.48s">${dni}</section>
+      `;
+
+      nastavScenu(temaPocasia(d.typ, d.ikona), d.typ);
+      pocitadlo(document.getElementById("cislo"), d.teplota);
+
+      // spustíme prechody až po vykreslení
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        document.getElementById("sipka").style.transform = `rotate(${d.smer + 180}deg)`;
+        document.getElementById("vlhkostBar").style.width = d.vlhkost + "%";
+        document.getElementById("uvBod").style.left = uvPoz + "%";
+      }));
+    }
 
     async function nacitaj() {
-      const mesto = document.getElementById("mesto").value;
-      vysledok.textContent = "Načítavam...";
-      vysledok.className = "";
+      const mesto = document.getElementById("mesto").value.trim();
+      if (!mesto) return;
+      vysledok.innerHTML = '<div class="stav"><div class="spinner"></div>Načítavam…</div>';
 
       try {
         const res = await fetch("pocasie.php?mesto=" + encodeURIComponent(mesto));
         const data = await res.json();
 
         if (!res.ok) {
-          vysledok.textContent = data.chyba;
-          vysledok.className = "chyba";
+          vysledok.innerHTML = `<div class="stav chyba">${esc(data.chyba)}</div>`;
           return;
         }
-
-        vysledok.innerHTML =
-          `<strong>${data.mesto}</strong><br>
-           ${data.teplota} °C (pocitovo ${data.pocitova} °C)<br>
-           ${data.popis}, vlhkosť ${data.vlhkost} %`;
+        zobraz(data);
       } catch (e) {
-        vysledok.textContent = "Nepodarilo sa spojiť so serverom.";
-        vysledok.className = "chyba";
+        vysledok.innerHTML = '<div class="stav chyba">Nepodarilo sa spojiť so serverom.</div>';
       }
     }
 
-    document.getElementById("hladaj").addEventListener("click", nacitaj);
+    document.getElementById("formular").addEventListener("submit", e => {
+      e.preventDefault();
+      nacitaj();
+    });
     nacitaj();
   </script>
 </body>
