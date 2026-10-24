@@ -1,0 +1,5 @@
+# Apache: zakáže prístup ku skrytým súborom (.env, .git, .htaccess ...)
+<FilesMatch "^\.">
+    Require all denied
+</FilesMatch>
+RedirectMatch 404 /\.git

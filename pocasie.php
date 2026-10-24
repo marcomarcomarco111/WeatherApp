@@ -1,5 +1,9 @@
 <?php
 header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+
+// chyby len do logu, nie do odpovede (prezradili by cesty k súborom)
+ini_set('display_errors', '0');
 
 // kľúč z .env
 $env = parse_ini_file(__DIR__ . '/.env');
@@ -12,7 +16,16 @@ if (!$kluc) {
 }
 
 // mesto z URL (?mesto=Nitra), predvolene Nitra
-$mesto = trim($_GET['mesto'] ?? 'Nitra');
+$mesto = $_GET['mesto'] ?? 'Nitra';
+
+// povolíme len text do 100 znakov: písmená (aj s diakritikou), medzery a . , ' -
+// is_string zachytí ?mesto[]=x, /u odmietne neplatné UTF-8
+if (!is_string($mesto) || !preg_match("/^[\p{L}\p{M} .,'\-]{1,100}$/u", $mesto = trim($mesto))) {
+    http_response_code(400);
+    echo json_encode(['chyba' => 'Neplatný názov mesta']);
+    exit;
+}
+
 // ignore_errors: aby sme dostali odpoveď aj pri 404/401
 $ctx = stream_context_create(['http' => ['ignore_errors' => true, 'timeout' => 8]]);
 
@@ -34,8 +47,8 @@ if (!$data || (int)($data['cod'] ?? 0) !== 200) {
     exit;
 }
 
-$lat = $data['coord']['lat'];
-$lon = $data['coord']['lon'];
+$lat = (float)$data['coord']['lat'];
+$lon = (float)$data['coord']['lon'];
 $posun = $data['timezone']; // posun od UTC v sekundách
 
 // predpoveď na 5 dní po 3 hodinách -> zoskupíme po dňoch
